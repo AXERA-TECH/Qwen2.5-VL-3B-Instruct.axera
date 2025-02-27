@@ -1,0 +1,21 @@
+Metadata-Version: 2.1
+Name: axengine
+Version: 0.2.0a0
+Summary: AXera Engine
+Home-page: UNKNOWN
+Author: Zhiqiang Wang
+Author-email: wangzhiqiang@axera-tech.com
+License: BSD
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: ==3.10.12
+Description-Content-Type: text/markdown
+
+AXera Engine
+

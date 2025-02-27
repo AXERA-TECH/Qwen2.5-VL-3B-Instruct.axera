@@ -1,0 +1,34 @@
+{
+  "model_type": "ONNX",
+  "npu_mode": "NPU3",
+  "quant": {
+    "input_configs": [
+      {
+        "tensor_name": "hidden_states",
+        "calibration_dataset": "calib/hidden_states.tar",
+        "calibration_size": 1,
+        "calibration_format":"Numpy"
+      }
+    ],
+    "calibration_method": "Percentile",
+    "precision_analysis": true,
+    "precision_analysis_method": "EndToEnd",
+    "layer_configs":  [
+      {
+        "start_tensor_names": ["DEFAULT"], 
+        "end_tensor_names": ["DEFAULT"], 
+        "data_type": "U16"
+      }
+
+    ]
+  },
+  "input_processors": [
+    {
+      "tensor_name": "hidden_states",
+      "src_dtype": "FP32"
+    }
+  ],
+  "compiler": {
+    "npu_perf": false
+  }
+}

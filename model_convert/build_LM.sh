@@ -1,0 +1,1 @@
+pulsar2 llm_build --input_path ~/AI-support/Qwen/Qwen2.5-VL-3B-Instruct/ --output_path ~/AI-support/Qwen/Qwen2.5-VL-3B-Instruct-AX650-mrope/ --kv_cache_len 1023 --hidden_state_type bf16 --prefill_len 320 --parallel 32 --chip AX650

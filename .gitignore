@@ -1,0 +1,5 @@
+*.onnx.data
+__pycache__/
+*.pth
+*.npy
+*.tar
