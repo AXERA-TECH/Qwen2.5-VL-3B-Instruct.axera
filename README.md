@@ -1,7 +1,7 @@
 # Qwen2.5-VL-3B-Instruct.axera
 Qwen2.5-VL-3B-Instruct DEMO on Axera
 
-- 预编译模型下载[models](https://github.com/AXERA-TECH/DepthAnythingV2.axera/releases/download/v1.0.0/models.tar.gz)，如需自行转换请参考[模型转换](/model_convert/README.md)
+- 预编译模型下载[models](https://github.com/AXERA-TECH/Qwen2.5-VL-3B-Instruct.axera/releases/download/v1.0.0/models.tar.gz)，如需自行转换请参考[模型转换](/model_convert/README.md)
 
 ## 支持平台
 
