@@ -63,7 +63,7 @@ messages = [
                 }
             ]
 ```
-[demo.jpg](assets/demo.jpg)  
+![demo.jpg](assets/demo.jpg)  
 
 **输出**  
 ```
@@ -85,7 +85,7 @@ messages = [
                 }
             ]
 ```
-[demo1.jpg](assets/demo1.jpg)  
+![demo1.jpg](assets/demo1.jpg)  
 **输出**  
 ```
 The image depicts a street scene in an urban area, likely in a city with historical architecture. The focal point of the image is a red double-decker bus, which is a common sight in many cities, particularly in the United Kingdom. The bus is parked on the side of the street and is adorned with an advertisement that reads, "Things get more exciting when you say yes." The advertisement is for Virgin Money, a financial services company.
