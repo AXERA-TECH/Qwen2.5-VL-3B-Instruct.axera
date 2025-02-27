@@ -99,6 +99,18 @@ The street is marked with white lines, indicating parking or pedestrian areas. T
 In summary, the image captures a moment in a historic urban setting with a red double-decker bus, an advertisement for Virgin Money, and a smiling woman standing on the sidewalk. The scene is characterized by classic architectural buildings and a calm street environment.<|im_end|>
 ```
 
+## 关于 mrope
+### Qwen2.5-VL 中的 multimodal_rotary_embedding（mrope）和 rope 的区别  
+1. mrope的 position id 是三维的（temporal，height，width），rope 是一维的
+2. mrope在使用的时候会将三维分channel （16,24,24）选出来合成一维，形式和rope相同。
+
+### axmodel 中 mrope的使用方法  
+mrope的position_id 是和图片尺寸，text长度相关的，但是在编译LM的部分又不希望固化这些参数。
+所以在实现上:
+模型中保存的 cos_param和sin_param和 rope的相同。
+在prefill阶段推理的时候，会传入三维的position_id，模型中以position_id作为index取gather cos_param和sin_param得到mrope的 cos_param和sin_param。然后模型中会将三维embedding按channel合成一维。
+在decode阶段，mrope因为三个维度相同，所以其实和rope等价，只是 起始position id 值不再是 prefill token length 加一，而是 prefill 阶段 最大position id 值加一。
+
 ## 技术讨论
 
 - Github issues
