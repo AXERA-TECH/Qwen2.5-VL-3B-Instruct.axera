@@ -99,6 +99,14 @@ The street is marked with white lines, indicating parking or pedestrian areas. T
 In summary, the image captures a moment in a historic urban setting with a red double-decker bus, an advertisement for Virgin Money, and a smiling woman standing on the sidewalk. The scene is characterized by classic architectural buildings and a calm street environment.<|im_end|>
 ```
 
+## 模型速度  
+| Vision Encoder | Time to First Token (ms) |
+|------|------|
+| U16 PTQ | 824  | 
+| Mixed PTQ |      |
+
+Language Model Decode: 3.5 tokens/s .
+
 ## 关于 mrope
 ### 一、Qwen2.5-VL 中的 multimodal_rotary_embedding（mrope）和 rope 的区别  
 1. mrope的 position id 是三维的（temporal，height，width），rope 是一维的
