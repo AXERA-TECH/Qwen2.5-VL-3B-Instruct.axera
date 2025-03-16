@@ -285,8 +285,9 @@ class Qwen2_5_VisionTransformerPretrainedModelInfer(Qwen2_5_VisionTransformerPre
         Returns:
             `torch.Tensor`: hidden_states.
         """
-
-        t, grid_hw,  tpp, channel = hidden_states.shape
+        # hidden_states = hidden_states.permute(0,2,3,1)
+        t, channel, grid_hw,  tpp  = hidden_states.shape
+        # t, grid_hw,  tpp, channel  = hidden_states.shape
         # hidden_states = hidden_states.permute(0,1,3,2).reshape(t*grid_hw, channel*tpp)
 
         assert grid_thw.shape[0]==1, f"not support shape:{grid_thw.shape}"
@@ -357,10 +358,11 @@ class Qwen2_5_VisionTransformerPretrainedModelInfer(Qwen2_5_VisionTransformerPre
 
         out = []
         for ti in range(t):
-            ht = hidden_states[ti]
+            ht = hidden_states[ti:ti+1]
             print("ht.shape",ht.shape)
             torch.save(ht, "hidden_states.pth")
-            ht = ht.permute(0,2,1).reshape(grid_hw, channel*tpp)
+            ht = ht.permute(0,2,3,1)
+            ht = ht.permute(0,1,3,2).reshape(grid_hw, channel*tpp)
             ht = self.patch_embed(ht)
             ht = ht.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
             ht = ht[win_idx_t, :, :]
@@ -380,6 +382,7 @@ class Qwen2_5_VisionTransformerPretrainedModelInfer(Qwen2_5_VisionTransformerPre
 
             out.append(ht)
         out = torch.cat(out, 0)
+        np.save("vit_out.npy", out.cpu().numpy())
         return out
 
 def generate_attnmask(seq_length, cu_seqlens):
@@ -398,7 +401,8 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         cu_seqlens = torch.load("cu_seqlens.pth","cpu", weights_only=True)
         cu_window_seqlens = torch.load("cu_window_seqlens.pth","cpu", weights_only=True)
 
-        seq_length = h.shape[0]
+        seq_length = h.shape[0] if h.shape[0]!=1 else h.shape[2]
+        # seq_length = h.shape[0] if h.shape[0]!=1 else h.shape[1]
         self.attention_mask = generate_attnmask(seq_length, cu_seqlens)
         self.attention_mask_window = generate_attnmask(seq_length, cu_window_seqlens)
 
@@ -444,22 +448,12 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         return hidden_states
 
     def forward_export_by_second_1(self, hidden_states):
-        grid_hw,  tpp, channel = hidden_states.shape
+        hidden_states = hidden_states.permute(0,2,3,1)
+        t, grid_hw,  tpp, channel = hidden_states.shape
         print("hidden_states.shape",hidden_states.shape)
         device = hidden_states.device
-        seq_length = grid_hw
-        cu_seqlens = torch.load("cu_seqlens.pth", "cpu", weights_only=True)
-        cu_window_seqlens = torch.load("cu_window_seqlens.pth", "cpu", weights_only=True)
-        print("start generate_attnmask")
-        attention_mask_1 = generate_attnmask(seq_length, cu_seqlens)
-        print("generate_attnmask 1")
-        attention_mask_window_1 = generate_attnmask(seq_length, cu_window_seqlens)
-        print("generate_attnmask 2")
 
-        assert torch.allclose(attention_mask_1, self.attention_mask)
-        assert torch.allclose(attention_mask_window_1, self.attention_mask_window)
-
-        hidden_states = hidden_states.permute(0,2,1).reshape(grid_hw, channel*tpp)
+        hidden_states = hidden_states.permute(0,1,3,2).reshape(grid_hw, channel*tpp)
         
         self.attention_mask = self.attention_mask.to(device)
         self.attention_mask_window = self.attention_mask_window.to(device)
@@ -660,7 +654,7 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         print("h shape",hidden_states.shape)
         outputs = []
         for ti in range(t):
-            ht = hidden_states[ti]
+            ht = hidden_states[ti:ti+1]
 
             inputs = {"hidden_states": ht.cpu().numpy().astype(np.float32),}
             out = session.run(["hidden_states_out"], inputs)[0]

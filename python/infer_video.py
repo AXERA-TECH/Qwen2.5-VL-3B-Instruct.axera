@@ -11,7 +11,10 @@ from transformers import  AutoTokenizer, AutoProcessor
 from qwen_vl_utils import process_vision_info
 import onnxruntime
 import gc
-
+from glob import glob
+from utils import get_rope_index
+from transformers.image_utils import PILImageResampling
+from preprocess import Qwen2VLImageProcessorExport
 
 def post_process(data, topk=1, topp=0.9, temperature=0.6):
     def top_p(l: np.ndarray, p: float) -> np.ndarray:
@@ -46,64 +49,13 @@ def post_process(data, topk=1, topp=0.9, temperature=0.6):
     next_token = candidate_index[pos]
     return next_token, candidate_index, candidate_soft
 
-POSTION_IDS = torch.tensor([[[ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 31,
-          32, 33, 34, 35, 36, 37, 38, 39, 40]],
-
-        [[ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 15,
-          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 16, 16, 16,
-          16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 17, 17, 17, 17,
-          17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 18, 18, 18, 18, 18,
-          18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 19, 19, 19, 19, 19, 19,
-          19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 20, 20, 20, 20, 20, 20, 20,
-          20, 20, 20, 20, 20, 20, 20, 20, 20, 21, 21, 21, 21, 21, 21, 21, 21,
-          21, 21, 21, 21, 21, 21, 21, 21, 22, 22, 22, 22, 22, 22, 22, 22, 22,
-          22, 22, 22, 22, 22, 22, 22, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
-          23, 23, 23, 23, 23, 23, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
-          24, 24, 24, 24, 24, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-          25, 25, 25, 25, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
-          26, 26, 26, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-          27, 27, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28,
-          28, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29,
-          30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 31,
-          32, 33, 34, 35, 36, 37, 38, 39, 40]],
-
-        [[ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
-          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 15, 16, 17,
-          18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 15, 16, 17, 18,
-          19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 15, 16, 17, 18, 19,
-          20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 15, 16, 17, 18, 19, 20,
-          21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 15, 16, 17, 18, 19, 20, 21,
-          22, 23, 24, 25, 26, 27, 28, 29, 30, 15, 16, 17, 18, 19, 20, 21, 22,
-          23, 24, 25, 26, 27, 28, 29, 30, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-          24, 25, 26, 27, 28, 29, 30, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-          25, 26, 27, 28, 29, 30, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
-          26, 27, 28, 29, 30, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
-          27, 28, 29, 30, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-          28, 29, 30, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
-          29, 30, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-          30, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
-          15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-          32, 33, 34, 35, 36, 37, 38, 39, 40]]])
 
 
 if __name__ == "__main__":
+
+    prefill_len = 512
     
-    checkpoint_dir="../Qwen2.5-VL-3B-Instruct-AX650-mrope/"
+    checkpoint_dir=f"../Qwen2.5-VL-3B-Instruct-AX650-video-prefill_512/"
     cfg = AutoConfig.from_pretrained(
         checkpoint_dir, trust_remote_code=True
     )
@@ -112,27 +64,29 @@ if __name__ == "__main__":
         checkpoint_dir, trust_remote_code=True
     )
         
-
     processor = AutoProcessor.from_pretrained(checkpoint_dir) 
+    paths = sorted(glob("demo_cv308/*.jpg"))
+    print(paths)
     messages = [
+        {
+            "role": "user",
+            "content": [
                 {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            # "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
-                            # "image": "demo.jpg"
-                            "image": "demo1.jpg"
-                        },
-                        {"type": "text", "text": "Describe this image."},
-                    ],
-                }
-            ]
+                    "type": "video",
+                    "video": paths,
+                    "max_pixels": 308 * 308,
+                    "fps": 1.0,
+                },
+                {"type": "text", "text": "描述一下这个视频的内容"},
+            ],
+        }
+    ]
 
     # Preparation for inference
     text = processor.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True
     )
+    print("text",text)
     image_inputs, video_inputs = process_vision_info(messages)
     inputs = processor(
         text=[text],
@@ -142,17 +96,42 @@ if __name__ == "__main__":
         return_tensors="pt",
     )
 
-    pixel_values = inputs['pixel_values']
-    print("pixel_values",pixel_values.shape)
-    # extract img feature by vit
-    vit_session = InferenceSession.load_from_model(f'{checkpoint_dir}/Qwen2.5-VL-3B-Instruct_vision.axmodel')
-    vit_output = vit_session.run({"hidden_states": pixel_values.numpy()})[0]  # (1, 256, 2048)
+    position_ids,_ = get_rope_index(cfg, inputs["input_ids"], video_grid_thw=inputs['video_grid_thw'], second_per_grid_ts=inputs['second_per_grid_ts'])
 
-    vit_output = vit_output[None,:,:]
-    print("vit feature extract done!")
+    # pixel_values = inputs['pixel_values_videos']
+    # print("pixel_values",pixel_values.shape)
+    # extract img feature by vit
+    vit_session = InferenceSession.load_from_model(f'{checkpoint_dir}/Qwen2.5-VL-3B-Instruct_vision_nhwc.axmodel')
+
+    t = inputs['video_grid_thw'][0,0]
+
+    images = []
+    for p in paths:
+        img = Image.open(p)
+        images.append(img)
+
+    img_processor = Qwen2VLImageProcessorExport(max_pixels=308*308, patch_size=14, temporal_patch_size=2, merge_size=2)
+    pixel_values, grid_thw = img_processor._preprocess(images, do_resize=True, resample=PILImageResampling.BICUBIC, 
+                                        do_rescale=False, do_normalize=False, 
+                                        do_convert_rgb=True)
+
+    # seq_len, dim = pixel_values.shape
+    # ht = pixel_values.reshape(t, seq_len//t, dim)
+    print("pixel_values.shape",pixel_values.shape)
+    t, seq_len,_,_ = pixel_values.shape
+    ht = pixel_values
+    vit_output = []
+    for i in range(t):
+        out = vit_session.run({"hidden_states": ht[i]})[0]  # (1, 576, 1176)
+        vit_output.append(out.astype(bfloat16))
     
     del vit_session
     gc.collect()
+
+    vit_output = np.concatenate(vit_output, axis=0)
+    vit_output = vit_output[None,:,:]
+    
+    print("vit feature extract done!")
 
     token_ids = inputs['input_ids'].squeeze().numpy().tolist()
 
@@ -162,7 +141,7 @@ if __name__ == "__main__":
     prefill_data = np.take(embeds, token_ids, axis=0)
     prefill_data = prefill_data.astype(bfloat16)
     
-    prefill_data[ image_insert_index : image_insert_index + 256] = vit_output[0, :, :]
+    prefill_data[ image_insert_index : image_insert_index + vit_output.shape[1]] = vit_output[0, :, :]
     token_len = len(token_ids)
 
 
@@ -180,25 +159,26 @@ if __name__ == "__main__":
     prefill_decoder_sessins = []
     for i in range(cfg.num_hidden_layers):
         session = InferenceSession.load_from_model(
-            f"{checkpoint_dir}/qwen2_5_vl_p320_l{i}_together.axmodel"
+            f"{checkpoint_dir}/qwen2_5_vl_p{prefill_len}_l{i}_together.axmodel"
         )
         prefill_decoder_sessins.append(session)
     post_process_session = InferenceSession.load_from_model(
         f"{checkpoint_dir}/qwen2_5_vl_post.axmodel"
+        # "../Qwen2.5-VL-3B-Instruct-AX650-video-prefill_512/qwen2_5_vl_post.axmodel"
     )
     print("model load done!")
 
     """
         prefill
     """
-    prefill_len = 320
+    
     for i in range(cfg.num_hidden_layers):
         prefill_decoder_sessins[i].set_runtime_context(group_id=1)
 
     if prefill_len > 0:
         indices = np.zeros((3, prefill_len), dtype=np.uint32)
 
-        indices[:, 0:token_len] = POSTION_IDS.squeeze(1).numpy().astype(np.uint32)
+        indices[:, 0:token_len] = position_ids.squeeze(1).numpy().astype(np.uint32)
 
         mask = np.zeros((1, prefill_len, prefill_len)) - 65536
         data = np.zeros((1, prefill_len, cfg.hidden_size)).astype(bfloat16)
@@ -267,6 +247,3 @@ if __name__ == "__main__":
             # print("hit eos!")
             break
     print(tokenizer.decode(token_ids[token_len:]))
-    
-    
-    

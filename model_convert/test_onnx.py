@@ -4,7 +4,7 @@ from modeling_qwen2_5_vl_export import Qwen2_5_VLForConditionalGenerationExport
 from qwen_vl_utils import process_vision_info
 import sys
 
-checkpoint_dir = sys.argv[1]
+checkpoint_dir = sys.argv[1] if len(sys.argv)>=2 else "../../Qwen/Qwen2.5-VL-3B-Instruct/"
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
     checkpoint_dir, torch_dtype=torch.float32, device_map="cuda"
@@ -38,7 +38,7 @@ messages = [
             {
                 "type": "image",
                 # "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
-                "image": "demo.jpg"
+                "image": "../assets/demo.jpg"
             },
             {"type": "text", "text": "Describe this image."},
         ],
