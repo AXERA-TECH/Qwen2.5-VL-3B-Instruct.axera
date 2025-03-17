@@ -168,13 +168,293 @@ class Qwen2_5_VisionTransformerPretrainedModelInfer(Qwen2_5_VisionTransformerPre
         hidden_states = self.merger(hidden_states)
         reverse_indices = torch.argsort(window_index)
         hidden_states = hidden_states[reverse_indices, :]
+        return hidden_states
+    
+    def forward_nchw(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            hidden_states (`torch.Tensor` of shape `(seq_len, hidden_size)`):
+                The final hidden states of the model.
+            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
+                The temporal, height and width of feature shape of each image in LLM.
 
+        Returns:
+            `torch.Tensor`: hidden_states.
+        """
+        torch.save(hidden_states, "hidden_states.pth")
+        t, channel, seq_len, tpp = hidden_states.shape
+        assert t==1 
+        hidden_states = hidden_states.permute(0,2,1,3).reshape(t,seq_len, channel*tpp)
+        hidden_states = self.patch_embed(hidden_states)
+        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        window_index, cu_window_seqlens = self.get_window_index(grid_thw)
+        cu_window_seqlens = torch.tensor(
+            cu_window_seqlens,
+            device=hidden_states.device,
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
+        cu_window_seqlens = torch.unique_consecutive(cu_window_seqlens)
+
+        seq_len, _ = hidden_states.size()
+        hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        hidden_states = hidden_states[window_index, :, :]
+        hidden_states = hidden_states.reshape(seq_len, -1)
+        rotary_pos_emb = rotary_pos_emb.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        rotary_pos_emb = rotary_pos_emb[window_index, :, :]
+        rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
+        emb = torch.cat((rotary_pos_emb, rotary_pos_emb), dim=-1)
+        position_embeddings = (emb.cos(), emb.sin())
+
+        cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
+            dim=0,
+            # Select dtype based on the following factors:
+            #  - FA2 requires that cu_seqlens_q must have dtype int32
+            #  - torch.onnx.export requires that cu_seqlens_q must have same dtype as grid_thw
+            # See https://github.com/huggingface/transformers/pull/34852 for more information
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
+        cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
+
+        torch.save(rotary_pos_emb, "rotary_pos_emb.pth")
+        torch.save(cu_seqlens, "cu_seqlens.pth")
+        torch.save(cu_window_seqlens, "cu_window_seqlens.pth")
+        torch.save(window_index, "window_index.pth")
+
+        for layer_num, blk in enumerate(self.blocks):
+            if layer_num in self.fullatt_block_indexes:
+                cu_seqlens_now = cu_seqlens
+            else:
+                cu_seqlens_now = cu_window_seqlens
+            if self.gradient_checkpointing and self.training:
+                hidden_states = self._gradient_checkpointing_func(
+                    blk.__call__, hidden_states, cu_seqlens_now, None, position_embeddings
+                )
+            else:
+                hidden_states = blk(hidden_states, cu_seqlens=cu_seqlens_now, position_embeddings=position_embeddings)
+
+        hidden_states = self.merger(hidden_states)
+        reverse_indices = torch.argsort(window_index)
+        hidden_states = hidden_states[reverse_indices, :]
         return hidden_states
 
+    def forward_by_second(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            hidden_states (`torch.Tensor` of shape `(seq_len, hidden_size)`):
+                The final hidden states of the model.
+            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
+                The temporal, height and width of feature shape of each image in LLM.
+
+        Returns:
+            `torch.Tensor`: hidden_states.
+        """
+
+        assert grid_thw.shape[0]==1, f"not support shape:{grid_thw.shape}"
+
+        t,grid_h,grid_w = grid_thw[0]
+
+        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        window_index, cu_window_seqlens = self.get_window_index(grid_thw)
+
+        cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
+            dim=0,
+            # Select dtype based on the following factors:
+            #  - FA2 requires that cu_seqlens_q must have dtype int32
+            #  - torch.onnx.export requires that cu_seqlens_q must have same dtype as grid_thw
+            # See https://github.com/huggingface/transformers/pull/34852 for more information
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
+        cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
+        
+        print("hidden_states.shape",hidden_states.shape)    # grid_t * grid_h * grid_w, channel * self.temporal_patch_size * self.patch_size * self.patch_size
+
+        
+        llm_grid_h, llm_grid_w = (
+                grid_h // self.spatial_merge_size,
+                grid_w // self.spatial_merge_size,
+            )
+        vit_merger_window_size = self.window_size // self.spatial_merge_size // self.patch_size
+        pad_h = vit_merger_window_size - llm_grid_h % vit_merger_window_size
+        pad_w = vit_merger_window_size - llm_grid_w % vit_merger_window_size
+        num_windows_h = (llm_grid_h + pad_h) // vit_merger_window_size
+        num_windows_w = (llm_grid_w + pad_w) // vit_merger_window_size
+
+        thw, dim = hidden_states.shape
+        hidden_states = hidden_states.view(t, -1, dim)
+        
+        torch.save(window_index[0:llm_grid_h*llm_grid_w], "window_index.pth")
+        
+        torch.save(cu_seqlens[0:2], "cu_seqlens.pth")
+        
+
+        win_idx_t = window_index[0:llm_grid_h*llm_grid_w]
+
+        cu_win_seqlens_t = cu_window_seqlens[0 : 1+ num_windows_h*num_windows_w]
+        cu_seqlens_t = cu_seqlens[0:2]
+
+        cu_win_seqlens_t = torch.tensor(
+                                        cu_win_seqlens_t,
+                                        device=hidden_states.device,
+                                        dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+                                        )
+        cu_win_seqlens_t = torch.unique_consecutive(cu_win_seqlens_t)
+        torch.save(cu_win_seqlens_t, "cu_window_seqlens.pth")
+        
+        rope_t = rotary_pos_emb[0: grid_h*grid_w]
+    
+        seq_len = thw//t
+        
+
+        rope_t = rope_t.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        rope_t = rope_t[win_idx_t, :, :]
+        rope_t = rope_t.reshape(seq_len, -1)
+
+        torch.save(rope_t, "rotary_pos_emb.pth")
+
+        emb = torch.cat((rope_t, rope_t), dim=-1)
+        pos_embs = (emb.cos(), emb.sin())
+
+
+        out = []
+        for ti in range(t):
+            ht = hidden_states[ti]
+            print("ht.shape",ht.shape)
+            torch.save(ht, "hidden_states.pth")
+            ht = self.patch_embed(ht)
+            ht = ht.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+            ht = ht[win_idx_t, :, :]
+            ht = ht.reshape(seq_len, -1)
+            
+            for layer_num, blk in enumerate(self.blocks):
+                if layer_num in self.fullatt_block_indexes:
+                    cu_seqlens_now = cu_seqlens_t
+                else:
+                    cu_seqlens_now = cu_win_seqlens_t
+                
+                ht = blk(ht, cu_seqlens=cu_seqlens_now, position_embeddings=pos_embs)
+
+            ht = self.merger(ht)
+            reverse_indices = torch.argsort(win_idx_t)
+            ht = ht[reverse_indices, :]
+
+            out.append(ht)
+        out = torch.cat(out, 0)
+        return out
+            
+    def forward_by_second_nchw(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            hidden_states (`torch.Tensor` of shape `(seq_len, hidden_size)`):
+                The final hidden states of the model.
+            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
+                The temporal, height and width of feature shape of each image in LLM.
+
+        Returns:
+            `torch.Tensor`: hidden_states.
+        """
+        # hidden_states = hidden_states.permute(0,2,3,1)
+        t, channel, grid_hw,  tpp  = hidden_states.shape
+        # t, grid_hw,  tpp, channel  = hidden_states.shape
+        # hidden_states = hidden_states.permute(0,1,3,2).reshape(t*grid_hw, channel*tpp)
+
+        assert grid_thw.shape[0]==1, f"not support shape:{grid_thw.shape}"
+
+        t,grid_h,grid_w = grid_thw[0]
+
+        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        window_index, cu_window_seqlens = self.get_window_index(grid_thw)
+
+        cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
+            dim=0,
+            # Select dtype based on the following factors:
+            #  - FA2 requires that cu_seqlens_q must have dtype int32
+            #  - torch.onnx.export requires that cu_seqlens_q must have same dtype as grid_thw
+            # See https://github.com/huggingface/transformers/pull/34852 for more information
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
+        cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
+        
+        print("hidden_states.shape",hidden_states.shape)    # grid_t * grid_h * grid_w, channel * self.temporal_patch_size * self.patch_size * self.patch_size
+
+        
+        llm_grid_h, llm_grid_w = (
+                grid_h // self.spatial_merge_size,
+                grid_w // self.spatial_merge_size,
+            )
+        vit_merger_window_size = self.window_size // self.spatial_merge_size // self.patch_size
+        pad_h = vit_merger_window_size - llm_grid_h % vit_merger_window_size
+        pad_w = vit_merger_window_size - llm_grid_w % vit_merger_window_size
+        num_windows_h = (llm_grid_h + pad_h) // vit_merger_window_size
+        num_windows_w = (llm_grid_w + pad_w) // vit_merger_window_size
+
+        # thw, dim = hidden_states.shape
+        # hidden_states = hidden_states.view(t, -1, dim)
+        
+        torch.save(window_index[0:llm_grid_h*llm_grid_w], "window_index.pth")
+        
+        torch.save(cu_seqlens[0:2], "cu_seqlens.pth")
+        
+
+        win_idx_t = window_index[0:llm_grid_h*llm_grid_w]
+
+        cu_win_seqlens_t = cu_window_seqlens[0 : 1+ num_windows_h*num_windows_w]
+        cu_seqlens_t = cu_seqlens[0:2]
+
+        cu_win_seqlens_t = torch.tensor(
+                                        cu_win_seqlens_t,
+                                        device=hidden_states.device,
+                                        dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+                                        )
+        cu_win_seqlens_t = torch.unique_consecutive(cu_win_seqlens_t)
+        torch.save(cu_win_seqlens_t, "cu_window_seqlens.pth")
+        
+        rope_t = rotary_pos_emb[0: grid_h*grid_w]
+    
+        seq_len = grid_hw
+        
+
+        rope_t = rope_t.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        rope_t = rope_t[win_idx_t, :, :]
+        rope_t = rope_t.reshape(seq_len, -1)
+
+        torch.save(rope_t, "rotary_pos_emb.pth")
+
+        emb = torch.cat((rope_t, rope_t), dim=-1)
+        pos_embs = (emb.cos(), emb.sin())
+
+
+        out = []
+        for ti in range(t):
+            ht = hidden_states[ti:ti+1]
+            print("ht.shape",ht.shape)
+            torch.save(ht, "hidden_states.pth")
+            ht = ht.permute(0,2,3,1)
+            ht = ht.permute(0,1,3,2).reshape(grid_hw, channel*tpp)
+            ht = self.patch_embed(ht)
+            ht = ht.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+            ht = ht[win_idx_t, :, :]
+            ht = ht.reshape(seq_len, -1)
+            
+            for layer_num, blk in enumerate(self.blocks):
+                if layer_num in self.fullatt_block_indexes:
+                    cu_seqlens_now = cu_seqlens_t
+                else:
+                    cu_seqlens_now = cu_win_seqlens_t
+                
+                ht = blk(ht, cu_seqlens=cu_seqlens_now, position_embeddings=pos_embs)
+
+            ht = self.merger(ht)
+            reverse_indices = torch.argsort(win_idx_t)
+            ht = ht[reverse_indices, :]
+
+            out.append(ht)
+        out = torch.cat(out, 0)
+        np.save("vit_out.npy", out.cpu().numpy())
+        return out
 
 def generate_attnmask(seq_length, cu_seqlens):
     attention_mask = torch.zeros([1, seq_length, seq_length],  dtype=torch.bool)
-    for i in range(1, len(cu_seqlens)):
+    for i in range(1, cu_seqlens.shape[0]):
         attention_mask[..., cu_seqlens[i - 1] : cu_seqlens[i], cu_seqlens[i - 1] : cu_seqlens[i]] = True
 
     return attention_mask
@@ -184,17 +464,18 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
     def __init__(self, config, *inputs, **kwargs) -> None:
         super().__init__(config, *inputs, **kwargs)
         
-        h = torch.load("hidden_states.pth")
-        cu_seqlens = torch.load("cu_seqlens.pth")
-        cu_window_seqlens = torch.load("cu_window_seqlens.pth")
+        h = torch.load("hidden_states.pth","cpu", weights_only=True)
+        cu_seqlens = torch.load("cu_seqlens.pth","cpu", weights_only=True)
+        cu_window_seqlens = torch.load("cu_window_seqlens.pth","cpu", weights_only=True)
 
-        seq_length = h.shape[0]
+        seq_length = h.shape[0] if h.shape[0]!=1 else h.shape[2]
+        # seq_length = h.shape[0] if h.shape[0]!=1 else h.shape[1]
         self.attention_mask = generate_attnmask(seq_length, cu_seqlens)
         self.attention_mask_window = generate_attnmask(seq_length, cu_window_seqlens)
 
-        self.rotary_pos_emb_ = torch.load("rotary_pos_emb.pth")
+        self.rotary_pos_emb_ = torch.load("rotary_pos_emb.pth","cpu", weights_only=True)
 
-        self.window_index = torch.load("window_index.pth")
+        self.window_index = torch.load("window_index.pth","cpu", weights_only=True)
         self.reverse_indices = torch.argsort(self.window_index)
 
         self.blocks = nn.ModuleList(
@@ -206,6 +487,47 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         device = hidden_states.device
         self.attention_mask = self.attention_mask.to(device)
         self.attention_mask_window = self.attention_mask_window.to(device)
+        self.rotary_pos_emb_ = self.rotary_pos_emb_.to(device)
+        self.reverse_indices = self.reverse_indices.to(device)
+
+        t, channel, seq_len, tpp = hidden_states.shape
+        assert t==1 
+        hidden_states = hidden_states.permute(0,2,1,3).reshape(t,seq_len, channel*tpp)
+        hidden_states = self.patch_embed(hidden_states)
+        seq_len, _ = hidden_states.size()
+        hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        hidden_states = hidden_states[self.window_index, :, :]
+        hidden_states = hidden_states.reshape(seq_len, -1)
+
+        for layer_num, blk in enumerate(self.blocks):
+            if layer_num in self.fullatt_block_indexes:
+                attention_mask_now = self.attention_mask
+            else:
+                attention_mask_now = self.attention_mask_window
+
+            hidden_states = blk(
+                hidden_states,
+                attention_mask=attention_mask_now,
+                rotary_pos_emb=self.rotary_pos_emb_,
+            )
+
+        hidden_states = self.merger(hidden_states)
+        # reverse_indices = torch.argsort(window_index)
+        hidden_states = hidden_states[self.reverse_indices, :]
+
+        return hidden_states
+
+    def forward_export_by_second_nchw(self, hidden_states):
+        hidden_states = hidden_states.permute(0,2,3,1)
+        t, grid_hw,  tpp, channel = hidden_states.shape
+        print("hidden_states.shape",hidden_states.shape)
+        device = hidden_states.device
+
+        hidden_states = hidden_states.permute(0,1,3,2).reshape(grid_hw, channel*tpp)
+        
+        self.attention_mask = self.attention_mask.to(device)
+        self.attention_mask_window = self.attention_mask_window.to(device)
+
         self.rotary_pos_emb_ = self.rotary_pos_emb_.to(device)
         self.reverse_indices = self.reverse_indices.to(device)
 
@@ -349,6 +671,88 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         hidden_states = session1.run(["hidden_states_out"], inputs)[0]
         hidden_states = torch.from_numpy(hidden_states).to(grid_thw.device)
         return hidden_states
+    
+    def forward_onnx_nchw(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            hidden_states (`torch.Tensor` of shape `(batch_size, seq_len, hidden_size)`):
+                The final hidden states of the model.
+            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
+                The temporal, height and width of feature shape of each image in LLM.
+
+        Returns:
+            `torch.Tensor`: hidden_states.
+        """
+        
+        print("test Vision Encoder Onnx -------------------")
+        session = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
+        
+        inputs = {"hidden_states": hidden_states.cpu().numpy().astype(np.float32),}
+        out = session.run(["hidden_states_out"], inputs)[0]
+        out = torch.from_numpy(out).to(grid_thw.device)
+      
+        return out
+
+    def forward_onnx_by_second(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            hidden_states (`torch.Tensor` of shape `(batch_size, seq_len, hidden_size)`):
+                The final hidden states of the model.
+            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
+                The temporal, height and width of feature shape of each image in LLM.
+
+        Returns:
+            `torch.Tensor`: hidden_states.
+        """
+       
+        t, grid_h, grid_w = grid_thw[0]
+
+        print("test Vision Encoder Onnx -------------------")
+        session = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
+        
+        
+        thw, dim = hidden_states.shape
+        hidden_states = hidden_states.view(t, -1, dim)
+
+        outputs = []
+        for ti in range(t):
+            ht = hidden_states[ti]
+
+            inputs = {"hidden_states": ht.cpu().numpy().astype(np.float32),}
+            out = session.run(["hidden_states_out"], inputs)[0]
+            out = torch.from_numpy(out).to(grid_thw.device)
+            outputs.append(out)
+        outputs = torch.cat(outputs, 0)
+        return outputs
+
+    def forward_onnx_by_second_nchw(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            hidden_states (`torch.Tensor` of shape `(batch_size, seq_len, hidden_size)`):
+                The final hidden states of the model.
+            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
+                The temporal, height and width of feature shape of each image in LLM.
+
+        Returns:
+            `torch.Tensor`: hidden_states.
+        """
+        
+        print("test Vision Encoder Onnx -------------------")
+        session = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
+        
+        
+        t = hidden_states.shape[0]
+        print("h shape",hidden_states.shape)
+        outputs = []
+        for ti in range(t):
+            ht = hidden_states[ti:ti+1]
+
+            inputs = {"hidden_states": ht.cpu().numpy().astype(np.float32),}
+            out = session.run(["hidden_states_out"], inputs)[0]
+            out = torch.from_numpy(out).to(grid_thw.device)
+            outputs.append(out)
+        outputs = torch.cat(outputs, 0)
+        return outputs
 
     def forward_onnx_two_parts(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
         """

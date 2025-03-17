@@ -35,18 +35,25 @@ def generate_attnmask(seq_length, cu_seqlens, device):
 
     return attention_mask
 
-checkpoint_dir = sys.argv[1]
+checkpoint_dir = sys.argv[1] if len(sys.argv)>=2 else "../../Qwen/Qwen2.5-VL-3B-Instruct/"
+which = sys.argv[2] if len(sys.argv)>=3 else "image"
+
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
     checkpoint_dir, torch_dtype=torch.float32, device_map="cpu"
 )
 
 export_model = model.visual
-export_model.forward = export_model.forward_export
+
+if which=="image":
+    export_model.forward = export_model.forward_export
+elif which=="video":
+    export_model.forward = export_model.forward_export_by_second_nchw
 device = torch.device("cpu")
 
 
 hidden_states = torch.load("hidden_states.pth",weights_only=True).to(torch.float32).to(device)
+print("hidden_states",hidden_states.shape)
 
 input = ( hidden_states)
 

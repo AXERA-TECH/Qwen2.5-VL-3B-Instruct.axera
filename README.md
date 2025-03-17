@@ -1,7 +1,8 @@
 # Qwen2.5-VL-3B-Instruct.axera
 Qwen2.5-VL-3B-Instruct DEMO on Axera
 
-- 预编译模型下载[models](https://github.com/AXERA-TECH/Qwen2.5-VL-3B-Instruct.axera/releases/download/v1.0.0/models.tar.gz)，如需自行转换请参考[模型转换](/model_convert/README.md)
+- 图片理解：预编译模型下载[models](https://github.com/AXERA-TECH/Qwen2.5-VL-3B-Instruct.axera/releases/download/v1.0.0/models.tar.gz)，如需自行转换请参考[模型转换](/model_convert/README.md)
+- 视频理解：预编译模型下载[models](https://github.com/AXERA-TECH/Qwen2.5-VL-3B-Instruct.axera/releases/download/v1.0.0/)，如需自行转换请参考[模型转换](/model_convert/README_VIDEO.md)
 
 ## 支持平台
 
@@ -47,7 +48,7 @@ python3 infer.py
 ```  
 
 #### 示例  
-**示例1**  
+**图片理解示例1**  
 **输入**  
 ```
 messages = [
@@ -69,7 +70,7 @@ messages = [
 ```
 The image depicts a serene beach scene with a person and a dog sitting on the sand. The person is wearing a plaid shirt and black pants, while the dog is wearing a harness. The background features the ocean with gentle waves and a clear sky, suggesting a calm and peaceful day at the beach. The lighting indicates that it might be either early morning or late afternoon, adding to the tranquil atmosphere.<|im_end|
 ```
-**示例2**  
+**图片理解示例2**  
 **输入**  
 ```
 messages = [
@@ -97,6 +98,53 @@ The street itself is lined with buildings that have a classic architectural styl
 The street is marked with white lines, indicating parking or pedestrian areas. The overall atmosphere of the image suggests a calm, possibly early morning or late afternoon, given the lighting and the lack of heavy traffic.
 
 In summary, the image captures a moment in a historic urban setting with a red double-decker bus, an advertisement for Virgin Money, and a smiling woman standing on the sidewalk. The scene is characterized by classic architectural buildings and a calm street environment.<|im_end|>
+```
+
+**视频理解示例**
+
+在开发板上运行命令
+
+```
+python3 infer_video.py
+```  
+**输入**
+```
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "video",
+                    "video": paths,
+                    "max_pixels": 308 * 308,
+                    "fps": 1.0,
+                },
+                {"type": "text", "text": "描述一下这个视频的内容"},
+            ],
+        }
+    ]
+```
+<div style="
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);  /* 4列等宽 */
+    grid-template-rows: repeat(2, 1fr);     /* 2行等高 */
+    gap: 10px;                              /* 图片间距 */
+    width: 80%;                             /* 容器宽度 */
+    margin: 0 auto;                         /* 居中显示 */
+">
+    <img src="demo/frame_0075.jpg" style="width: 100%; height: 100%; object-fit: cover;">
+    <img src="demo/frame_0077.jpg" style="width: 100%; height: 100%; object-fit: cover;">
+    <img src="demo/frame_0079.jpg" style="width: 100%; height: 100%; object-fit: cover;">
+    <img src="demo/frame_0081.jpg" style="width: 100%; height: 100%; object-fit: cover;">
+    <img src="demo/frame_0083.jpg" style="width: 100%; height: 100%; object-fit: cover;">
+    <img src="demo/frame_0085.jpg" style="width: 100%; height: 100%; object-fit: cover;">
+    <img src="demo/frame_0087.jpg" style="width: 100%; height: 100%; object-fit: cover;">
+    <img src="demo/frame_0089.jpg" style="width: 100%; height: 100%; object-fit: cover;">
+</div>
+
+**输出**  
+```
+视频显示的是一个城市街道的场景。时间戳显示为2月26日，地点是北京。视频中，一名穿着深色外套和牛仔裤的男子正在推着一个行李箱。突然，他似乎被什么东西绊倒，整个人向前扑倒，行李箱也随之倒地。男子试图站起来，但似乎有些吃力。背景中可以看到一些行人和车辆，以及一个广告牌，上面有一个绿色的树形图案。整个场景看起来是在白天拍摄的，光线充足。<|im_end|>
 ```
 
 ## 模型速度  

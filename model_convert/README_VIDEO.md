@@ -17,33 +17,34 @@ conda activate qwen2_5_vl
 ```
 pip install -r requirements.txt
 ```
-本代码依赖 `transformers==4.49.0`，最好使用这个版本的`transformers`，其它版本可能会有不兼容问题。
+本代码依赖 `transformers>=4.49.0`，最好使用这个版本的`transformers`，其它版本可能会有不兼容问题。
 
 ### 3. 导出模型（PyTorch -> ONNX）
 
 在导出onnx之前需要先下从 huggingface 或 model scope 下载模型。这里假设模型的保存目录是 `../Qwen/Qwen2.5-VL-3B-Instruct/`。    
 
-可以执行`bash export.sh`直接导出模型，以下是详细步骤。  
+由于视频输入的token数较多，直接导出的onnx会比较大，编译和运行都会比较慢，所以这里按时间步（temporal_patch_size）导出onnx模型。这个模型的视觉部分按时间步运行时，不同时间步的`rotary_pos_emb`, `cu_seqlens`, `cu_window_seqlens`, `window_index`都是相同的，所以导出比较方便。  
+和模型原始输入不同的是，这里为了让模型使用UINT8输入，特意将`Qwen2VLImageProcessor` 编排过的 image patches 又转换成了图片的格式（具体代码在[preprocess.py](preprocess.py)里面可以看到）。
+
+可以执行`bash export_video.sh`直接导出模型，以下是详细步骤。  
 
 1). 运行模型，保存导出onnx需要的参数
 ```
-python run.py ../Qwen/Qwen2.5-VL-3B-Instruct/
+python run_video_by_sec.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 ```
 这里会保存 `hidden_states`, `rotary_pos_emb`, `cu_seqlens`, `cu_window_seqlens`, `window_index`。  
 这几个tensor，除了`hidden_states`和像素值、图像尺寸有关外，其它四个都只和图像尺寸相关。所以如果模型的输入尺寸固定，这几个tensor可以固定到onnx模型中。
 
 2). 导出onnx模型
-和模型原始输入不同的是，这里为了让模型使用UINT8输入，特意将`Qwen2VLImageProcessor` 编排过的 image patches 又转换成了图片的格式（具体代码在[preprocess.py](preprocess.py)里面可以看到）。  
-
 ```
-python export.py ../Qwen/Qwen2.5-VL-3B-Instruct/
+python export.py ../Qwen/Qwen2.5-VL-3B-Instruct/  video
 ```
 这一步会生成 `Qwen2.5-VL-3B-Instruct_vision.onnx`和`Qwen2.5-VL-3B-Instruct_vision.onnx.data`,计算图和权重参数分离。
 
 3). 测试onnx模型
 
 ```
-python test_onnx.py ../Qwen/Qwen2.5-VL-3B-Instruct/
+python test_onnx_video_by_sec.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 ```
 这一步会用onnx模型替换 vision encoder 模块进行推理。
 
@@ -56,8 +57,8 @@ python test_onnx.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 
 1). 生成量化数据集  
 ```
-python get_image_calib.py
-cd calib_img
+python get_calib.py
+cd calib
 tar -cvf hidden_states.tar hidden_states.npy
 ```
 
@@ -72,7 +73,7 @@ tar -cvf hidden_states.tar hidden_states.npy
 参考命令如下：
 
 ```
-pulsar2 build --input Qwen2.5-VL-3B-Instruct_vision.onnx --config config.json --output_dir build-output --output_name Qwen2.5-VL-3B-Instruct_vision.axmodel --target_hardware AX650 --compiler.check 0
+pulsar2 build --input Qwen2.5-VL-3B-Instruct_vision.onnx --config config_video.json --output_dir build-output --output_name Qwen2.5-VL-3B-Instruct_vision.axmodel --target_hardware AX650 --compiler.check 0
 ```
 编译完成后将文件`build-output/Qwen2.5-VL-3B-Instruct_vision.axmodel` 放到 `../Qwen/Qwen2.5-VL-3B-Instruct-AX650/`
 
@@ -81,7 +82,7 @@ pulsar2 build --input Qwen2.5-VL-3B-Instruct_vision.onnx --config config.json --
 ### 1. 转换Language Model  
 执行命令
 ```
-pulsar2 llm_build --input_path ../Qwen/Qwen2.5-VL-3B-Instruct/ --output_path ../Qwen/Qwen2.5-VL-3B-Instruct-AX650/ --kv_cache_len 1023 --hidden_state_type bf16 --prefill_len 320 --parallel 32 --chip AX650
+pulsar2 llm_build --input_path ../Qwen/Qwen2.5-VL-3B-Instruct/ --output_path ../Qwen/Qwen2.5-VL-3B-Instruct-AX650/ --kv_cache_len 1023 --hidden_state_type bf16 --prefill_len 512 --parallel 32 --chip AX650
 ```
 其中 `prefill_len` 的长度就是 `prefill`阶段的最大token数，请根据实际情况设置这个值。
 

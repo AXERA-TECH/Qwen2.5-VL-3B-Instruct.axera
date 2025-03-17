@@ -53,9 +53,9 @@ def post_process(data, topk=1, topp=0.001, temperature=0.1):
 
 if __name__ == "__main__":
 
-    prefill_len = 320
+    prefill_len = 512
     
-    checkpoint_dir="../Qwen2.5-VL-3B-Instruct-AX650-prefill_320/"
+    checkpoint_dir=f"../Qwen2.5-VL-3B-Instruct-AX650-video-prefill_512/"
     cfg = AutoConfig.from_pretrained(
         checkpoint_dir, trust_remote_code=True
     )
@@ -65,29 +65,28 @@ if __name__ == "__main__":
     )
         
     processor = AutoProcessor.from_pretrained(checkpoint_dir) 
-    
-    path = "demo1.jpg"
+    paths = sorted(glob("demo_cv308/*.jpg"))
+    print(paths)
     messages = [
+        {
+            "role": "user",
+            "content": [
                 {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            # "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
-                            # "image": "demo.jpg"
-                            "image": path,
-                            "max_pixels": 448 * 448,
-                        },
-                        {"type": "text", "text": "Describe this image."},
-                    ],
-                }
-            ]
+                    "type": "video",
+                    "video": paths,
+                    "max_pixels": 308 * 308,
+                    "fps": 1.0,
+                },
+                {"type": "text", "text": "描述一下这个视频的内容"},
+            ],
+        }
+    ]
 
     # Preparation for inference
     text = processor.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True
     )
-    
+        
     image_inputs, video_inputs = process_vision_info(messages)
     inputs = processor(
         text=[text],
@@ -97,18 +96,22 @@ if __name__ == "__main__":
         return_tensors="pt",
     )
 
-    position_ids,_ = get_rope_index(cfg, inputs["input_ids"], image_grid_thw=inputs['image_grid_thw'])
+    position_ids,_ = get_rope_index(cfg, inputs["input_ids"], video_grid_thw=inputs['video_grid_thw'], second_per_grid_ts=inputs['second_per_grid_ts'])
 
     # pixel_values = inputs['pixel_values_videos']
     # print("pixel_values",pixel_values.shape)
     # extract img feature by vit
     vit_session = InferenceSession.load_from_model(f'{checkpoint_dir}/Qwen2.5-VL-3B-Instruct_vision_nhwc.axmodel')
 
+    t = inputs['video_grid_thw'][0,0]
 
-    image = Image.open(path)
-    image = image.resize((308,308))
-    img_processor = Qwen2VLImageProcessorExport(max_pixels=448*448, patch_size=14, temporal_patch_size=2, merge_size=2)
-    pixel_values, grid_thw = img_processor._preprocess(image, do_resize=True, resample=PILImageResampling.BICUBIC, 
+    images = []
+    for p in paths:
+        img = Image.open(p)
+        images.append(img)
+
+    img_processor = Qwen2VLImageProcessorExport(max_pixels=308*308, patch_size=14, temporal_patch_size=2, merge_size=2)
+    pixel_values, grid_thw = img_processor._preprocess(images, do_resize=True, resample=PILImageResampling.BICUBIC, 
                                         do_rescale=False, do_normalize=False, 
                                         do_convert_rgb=True)
 
@@ -119,7 +122,7 @@ if __name__ == "__main__":
     ht = pixel_values
     vit_output = []
     for i in range(t):
-        out = vit_session.run({"hidden_states": ht[i]})[0]  
+        out = vit_session.run({"hidden_states": ht[i]})[0]  # (1, 576, 1176)
         vit_output.append(out.astype(bfloat16))
     
     del vit_session
@@ -244,6 +247,3 @@ if __name__ == "__main__":
             # print("hit eos!")
             break
     print(tokenizer.decode(token_ids[token_len:]))
-    
-    
-    
