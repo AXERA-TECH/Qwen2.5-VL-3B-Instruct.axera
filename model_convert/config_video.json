@@ -5,8 +5,8 @@
     "input_configs": [
       {
         "tensor_name": "hidden_states",
-        "calibration_dataset": "calib_img/hidden_states.tar",
-        "calibration_size": 8,
+        "calibration_dataset": "calib/hidden_states.tar",
+        "calibration_size": 4,
         "calibration_mean": [122.7709383 , 116.7460125 , 104.09373615],
         "calibration_std": [68.5005327 , 66.6321579 , 70.32316305],
         "calibration_format":"Image"
@@ -15,7 +15,7 @@
     "calibration_method": "MinMax",
     "precision_analysis": true,
     "precision_analysis_method": "EndToEnd",
-    "conv_bias_data_type": "FP32",
+	  "conv_bias_data_type": "FP32",
     "enable_smooth_quant": true,
 	  "disable_auto_refine_scale": true,
     "layer_configs":  [

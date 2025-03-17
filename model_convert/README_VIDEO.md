@@ -24,7 +24,7 @@ pip install -r requirements.txt
 在导出onnx之前需要先下从 huggingface 或 model scope 下载模型。这里假设模型的保存目录是 `../Qwen/Qwen2.5-VL-3B-Instruct/`。    
 
 由于视频输入的token数较多，直接导出的onnx会比较大，编译和运行都会比较慢，所以这里按时间步（temporal_patch_size）导出onnx模型。这个模型的视觉部分按时间步运行时，不同时间步的`rotary_pos_emb`, `cu_seqlens`, `cu_window_seqlens`, `window_index`都是相同的，所以导出比较方便。  
-另外图片理解模型的导出不同的是，这里为了让模型使用UINT8输入，特意将`Qwen2VLImageProcessor` 编排过的 image patches 又转换成了图片的格式（具体代码在[preprocess.py](preprocess.py)里面可以看到）。
+和模型原始输入不同的是，这里为了让模型使用UINT8输入，特意将`Qwen2VLImageProcessor` 编排过的 image patches 又转换成了图片的格式（具体代码在[preprocess.py](preprocess.py)里面可以看到）。
 
 可以执行`bash export_video.sh`直接导出模型，以下是详细步骤。  
 
@@ -61,7 +61,6 @@ python get_calib.py
 cd calib
 tar -cvf hidden_states.tar hidden_states.npy
 ```
- 如果需要调精度，可以多跑一些数据，多导出一些hidden_states来构造量化数据集。
 
 2). 模型转换
 

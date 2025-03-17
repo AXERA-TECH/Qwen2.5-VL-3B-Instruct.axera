@@ -48,7 +48,7 @@ export_model = model.visual
 if which=="image":
     export_model.forward = export_model.forward_export
 elif which=="video":
-    export_model.forward = export_model.forward_export_by_second_1
+    export_model.forward = export_model.forward_export_by_second_nchw
 device = torch.device("cpu")
 
 

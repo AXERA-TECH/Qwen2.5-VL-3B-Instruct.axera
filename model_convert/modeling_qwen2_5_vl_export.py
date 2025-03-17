@@ -169,6 +169,73 @@ class Qwen2_5_VisionTransformerPretrainedModelInfer(Qwen2_5_VisionTransformerPre
         reverse_indices = torch.argsort(window_index)
         hidden_states = hidden_states[reverse_indices, :]
         return hidden_states
+    
+    def forward_nchw(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            hidden_states (`torch.Tensor` of shape `(seq_len, hidden_size)`):
+                The final hidden states of the model.
+            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
+                The temporal, height and width of feature shape of each image in LLM.
+
+        Returns:
+            `torch.Tensor`: hidden_states.
+        """
+        torch.save(hidden_states, "hidden_states.pth")
+        t, channel, seq_len, tpp = hidden_states.shape
+        assert t==1 
+        hidden_states = hidden_states.permute(0,2,1,3).reshape(t,seq_len, channel*tpp)
+        hidden_states = self.patch_embed(hidden_states)
+        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        window_index, cu_window_seqlens = self.get_window_index(grid_thw)
+        cu_window_seqlens = torch.tensor(
+            cu_window_seqlens,
+            device=hidden_states.device,
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
+        cu_window_seqlens = torch.unique_consecutive(cu_window_seqlens)
+
+        seq_len, _ = hidden_states.size()
+        hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        hidden_states = hidden_states[window_index, :, :]
+        hidden_states = hidden_states.reshape(seq_len, -1)
+        rotary_pos_emb = rotary_pos_emb.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        rotary_pos_emb = rotary_pos_emb[window_index, :, :]
+        rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
+        emb = torch.cat((rotary_pos_emb, rotary_pos_emb), dim=-1)
+        position_embeddings = (emb.cos(), emb.sin())
+
+        cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
+            dim=0,
+            # Select dtype based on the following factors:
+            #  - FA2 requires that cu_seqlens_q must have dtype int32
+            #  - torch.onnx.export requires that cu_seqlens_q must have same dtype as grid_thw
+            # See https://github.com/huggingface/transformers/pull/34852 for more information
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
+        cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
+
+        torch.save(rotary_pos_emb, "rotary_pos_emb.pth")
+        torch.save(cu_seqlens, "cu_seqlens.pth")
+        torch.save(cu_window_seqlens, "cu_window_seqlens.pth")
+        torch.save(window_index, "window_index.pth")
+
+        for layer_num, blk in enumerate(self.blocks):
+            if layer_num in self.fullatt_block_indexes:
+                cu_seqlens_now = cu_seqlens
+            else:
+                cu_seqlens_now = cu_window_seqlens
+            if self.gradient_checkpointing and self.training:
+                hidden_states = self._gradient_checkpointing_func(
+                    blk.__call__, hidden_states, cu_seqlens_now, None, position_embeddings
+                )
+            else:
+                hidden_states = blk(hidden_states, cu_seqlens=cu_seqlens_now, position_embeddings=position_embeddings)
+
+        hidden_states = self.merger(hidden_states)
+        reverse_indices = torch.argsort(window_index)
+        hidden_states = hidden_states[reverse_indices, :]
+        return hidden_states
 
     def forward_by_second(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
         """
@@ -274,7 +341,7 @@ class Qwen2_5_VisionTransformerPretrainedModelInfer(Qwen2_5_VisionTransformerPre
         out = torch.cat(out, 0)
         return out
             
-    def forward_by_second_1(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+    def forward_by_second_nchw(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
         """
         Args:
             hidden_states (`torch.Tensor` of shape `(seq_len, hidden_size)`):
@@ -423,6 +490,9 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         self.rotary_pos_emb_ = self.rotary_pos_emb_.to(device)
         self.reverse_indices = self.reverse_indices.to(device)
 
+        t, channel, seq_len, tpp = hidden_states.shape
+        assert t==1 
+        hidden_states = hidden_states.permute(0,2,1,3).reshape(t,seq_len, channel*tpp)
         hidden_states = self.patch_embed(hidden_states)
         seq_len, _ = hidden_states.size()
         hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
@@ -447,7 +517,7 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
 
         return hidden_states
 
-    def forward_export_by_second_1(self, hidden_states):
+    def forward_export_by_second_nchw(self, hidden_states):
         hidden_states = hidden_states.permute(0,2,3,1)
         t, grid_hw,  tpp, channel = hidden_states.shape
         print("hidden_states.shape",hidden_states.shape)
@@ -601,6 +671,27 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         hidden_states = session1.run(["hidden_states_out"], inputs)[0]
         hidden_states = torch.from_numpy(hidden_states).to(grid_thw.device)
         return hidden_states
+    
+    def forward_onnx_nchw(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            hidden_states (`torch.Tensor` of shape `(batch_size, seq_len, hidden_size)`):
+                The final hidden states of the model.
+            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
+                The temporal, height and width of feature shape of each image in LLM.
+
+        Returns:
+            `torch.Tensor`: hidden_states.
+        """
+        
+        print("test Vision Encoder Onnx -------------------")
+        session = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
+        
+        inputs = {"hidden_states": hidden_states.cpu().numpy().astype(np.float32),}
+        out = session.run(["hidden_states_out"], inputs)[0]
+        out = torch.from_numpy(out).to(grid_thw.device)
+      
+        return out
 
     def forward_onnx_by_second(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
         """
@@ -634,7 +725,7 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         outputs = torch.cat(outputs, 0)
         return outputs
 
-    def forward_onnx_by_second_1(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+    def forward_onnx_by_second_nchw(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
         """
         Args:
             hidden_states (`torch.Tensor` of shape `(batch_size, seq_len, hidden_size)`):

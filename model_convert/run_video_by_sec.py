@@ -18,7 +18,7 @@ model = Qwen2_5_VLForConditionalGenerationInfer.from_pretrained(
     checkpoint_dir, torch_dtype=torch.float32, device_map="cuda"
 )
 # model.visual.forward = model.visual.forward_by_second
-model.visual.forward = model.visual.forward_by_second_1
+model.visual.forward = model.visual.forward_by_second_nchw
 
 
 paths = sorted(glob("../demo/*.jpg"))

@@ -33,6 +33,8 @@ python run.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 这几个tensor，除了`hidden_states`和像素值、图像尺寸有关外，其它四个都只和图像尺寸相关。所以如果模型的输入尺寸固定，这几个tensor可以固定到onnx模型中。
 
 2). 导出onnx模型
+和模型原始输入不同的是，这里为了让模型使用UINT8输入，特意将`Qwen2VLImageProcessor` 编排过的 image patches 又转换成了图片的格式（具体代码在[preprocess.py](preprocess.py)里面可以看到）。  
+
 ```
 python export.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 ```
@@ -54,9 +56,10 @@ python test_onnx.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 
 1). 生成量化数据集  
 ```
+python get_image_calib.py
+cd calib_img
 tar -cvf hidden_states.tar hidden_states.npy
 ```
- 如果需要调精度，可以多跑一些数据，多导出一些hidden_states来构造量化数据集。
 
 2). 模型转换
 

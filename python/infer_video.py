@@ -16,7 +16,7 @@ from utils import get_rope_index
 from transformers.image_utils import PILImageResampling
 from preprocess import Qwen2VLImageProcessorExport
 
-def post_process(data, topk=1, topp=0.9, temperature=0.6):
+def post_process(data, topk=1, topp=0.001, temperature=0.1):
     def top_p(l: np.ndarray, p: float) -> np.ndarray:
         index = np.argsort(l)
         res = l.copy()
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     text = processor.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True
     )
-    print("text",text)
+        
     image_inputs, video_inputs = process_vision_info(messages)
     inputs = processor(
         text=[text],

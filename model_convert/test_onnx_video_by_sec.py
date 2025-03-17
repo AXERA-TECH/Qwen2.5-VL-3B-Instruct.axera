@@ -15,7 +15,7 @@ model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
 )
 # model.visual.forward = model.visual.forward_onnx_by_second
 
-model.visual.forward = model.visual.forward_onnx_by_second_1
+model.visual.forward = model.visual.forward_onnx_by_second_nchw
 
 
 paths = sorted(glob("../demo/*.jpg"))
