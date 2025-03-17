@@ -58,6 +58,7 @@ inputs = processor(
 inputs = inputs.to("cpu")  # 'input_ids', 'attention_mask', 'pixel_values', 'image_grid_thw'
 print("inputs.keys()", inputs.keys())
 print("input_ids",inputs['input_ids'])
+print("image_grid_thw", inputs["image_grid_thw"])
 cfg = AutoConfig.from_pretrained(
         checkpoint_dir, trust_remote_code=True
     )

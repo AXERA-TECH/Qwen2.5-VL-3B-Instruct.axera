@@ -14,34 +14,10 @@ model = Qwen2_5_VLForConditionalGenerationInfer.from_pretrained(
     checkpoint_dir, torch_dtype=torch.float32, device_map="cuda"
 )
 
-
-
 paths = sorted(glob("../demo/*.jpg"))
-# paths=sorted(glob("/home/lihongjie/AI-support/InternVL2_5-1B/examples/demo/*.jpg"))
-# paths = paths[75:90]
 print(paths)
 
-
-# text="""
-# You are an assistant for monitoring videos. I will give you an video that may contain people, motor vehicles, non-motor vehicles, etc. You need to generate a detailed description based on the content of the image and, based on the content of the image, generate an alarm description if necessary.
-
-# Detailed Description
-# The detailed description includes the attributes of the targets, the current status of the targets, and the current behavior of the targets, such as the clothing and behavior of people; the color, license plate number, and model of vehicles.
-
-# Alarm Description
-# Based on the detailed description and the content of the video, if the video contains any of the following critical events, generate an alarm description to notify the user:
-# Critical Events: [Fire, Leakage, Delivery person delivering food, Infant crawling to the edge of the bed, Pet opening the door, Robbery, Playing with phone or sleeping during working hours, Not on post during working hours, Goods overturned, Fighting, Someone falling down, Jumping over turnstile]
-
-# Requirements
-
-# Detailed Description: Describe each target, with no more than 10 words for each target description.
-# Alarm Description: Must be within the list of critical events, with no more than 10 words for the alarm description.
-# Output Format
-# Detailed Description:
-# Alarm Description: If no alarm events are detected, output None
-# """
-# text = "描述这个视频."
-text="描述一下这个视频的内容"
+text = "描述这个视频."
 messages = [
     {
         "role": "user",
@@ -78,14 +54,7 @@ inputs = processor(
     **video_kwargs,
 )
 inputs = inputs.to("cuda")
-print(inputs.keys())
-print("pixel_values_videos shape",inputs['pixel_values_videos'].shape)
-print("inputs['video_grid_thw']",inputs['video_grid_thw'])
-position_ids,_ = get_rope_index(cfg, inputs["input_ids"], video_grid_thw=inputs['video_grid_thw'], second_per_grid_ts=inputs['second_per_grid_ts'])
-print("position_ids",position_ids.shape)
-np.save("position_ids.npy", position_ids.cpu().numpy())
-with open("position_ids.bin", "wb") as f:
-    f.write(position_ids.cpu().numpy().astype(np.float32).tobytes())
+# position_ids,_ = get_rope_index(cfg, inputs["input_ids"], video_grid_thw=inputs['video_grid_thw'], second_per_grid_ts=inputs['second_per_grid_ts'])
 
 # Inference
 generated_ids = model.generate(**inputs, max_new_tokens=128)

@@ -63,18 +63,12 @@ image_std =  [
 # pixel_values, grid_thw = img_processor._preprocess(images, do_resize=True, resample=PILImageResampling.BICUBIC, 
 #                                     do_rescale=True, rescale_factor=1/255, do_normalize=True, 
 #                                     image_mean=image_mean, image_std=image_std,do_convert_rgb=True)
-pixel_values, grid_thw, processed_images = img_processor._preprocess(images, do_resize=True, resample=PILImageResampling.BICUBIC, 
+pixel_values, grid_thw = img_processor._preprocess(images, do_resize=True, resample=PILImageResampling.BICUBIC, 
                                         do_rescale=False, do_normalize=False, 
                                         do_convert_rgb=True)
 
-print("processed_images",processed_images)
-for i,pimg in enumerate(processed_images):
-    pimg = pimg.transpose(1,2,0)
-    cv2.imwrite(f"{i}.jpg", pimg)
-
 t,seq_len,tpp,_ = pixel_values.shape
 
-print("pixel_values", pixel_values.reshape(t,-1)[0,200000:200000+130])
 pixel_values = torch.from_numpy(pixel_values).to("cuda")
 mean = torch.tensor(image_mean,dtype=torch.float32).reshape([1,1,1,3])*255
 mean = mean.to("cuda")
@@ -83,8 +77,7 @@ std = std.to("cuda")
 pixel_values = (pixel_values-mean)/std
 
 pixel_values = pixel_values.permute(0,3,1,2)
-print("pixel_values_videos", pixel_values.shape)
-print("grid_thw",grid_thw)
+
 #In Qwen 2.5 VL, frame rate information is also input into the model to align with absolute time.
 # Preparation for inference
 cfg = AutoConfig.from_pretrained(
@@ -105,15 +98,12 @@ inputs = processor(
 )
 inputs = inputs.to("cuda")
 print(inputs.keys())
-print("pixel_values_videos shape",inputs['pixel_values_videos'].shape)
-# assert torch.allclose(inputs['pixel_values_videos'], torch.from_numpy(pixel_values).to("cuda"))
 
 print("inputs['video_grid_thw']",inputs['video_grid_thw'])
 print("input_ids",inputs["input_ids"].shape)
 print("second_per_grid_ts", inputs['second_per_grid_ts'])
-position_ids,_ = get_rope_index(cfg, inputs["input_ids"], video_grid_thw=inputs['video_grid_thw'], second_per_grid_ts=inputs['second_per_grid_ts'])
-print("position_ids",position_ids)
-np.save("position_ids.npy",position_ids.cpu().numpy())
+# position_ids,_ = get_rope_index(cfg, inputs["input_ids"], video_grid_thw=inputs['video_grid_thw'], second_per_grid_ts=inputs['second_per_grid_ts'])
+# print("position_ids",position_ids)
 inputs['pixel_values_videos'] = pixel_values
 # Inference
 generated_ids = model.generate(**inputs, max_new_tokens=128)

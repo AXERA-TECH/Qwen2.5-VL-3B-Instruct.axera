@@ -152,4 +152,4 @@ class Qwen2VLImageProcessorExport(Qwen2VLImageProcessor):
         flatten_patches =  patches.reshape(
             grid_t,  grid_h * grid_w,  self.temporal_patch_size * self.patch_size * self.patch_size, channel
         )
-        return flatten_patches, (grid_t, grid_h, grid_w), processed_images
+        return flatten_patches, (grid_t, grid_h, grid_w)

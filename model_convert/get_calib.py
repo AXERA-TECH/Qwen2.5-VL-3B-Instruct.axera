@@ -7,16 +7,12 @@ import random
 from PIL import Image
 import cv2
 if __name__=="__main__":
-    paths = sorted(glob("demo/*"))[75:90][::2]
-
-    # paths = random.sample(paths, 64)
-    # paths = sorted(paths)
+    paths = sorted(glob("../demo/*"))
     print(paths)
 
     images = []
     for p in paths:
         img = Image.open(p)
-        img = img.crop([150, 540-512, 150+512, 540])
         images.append(img)
 
     img_processor = Qwen2VLImageProcessorExport(max_pixels=308*308, patch_size=14, temporal_patch_size=2, merge_size=2)
