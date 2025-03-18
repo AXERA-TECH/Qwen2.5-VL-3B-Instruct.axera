@@ -1,0 +1,4 @@
+[submodule "cpp"]
+	path = cpp
+	url = https://github.com/techshoww/ax-llm.git
+	branch = qwen2_5_vl_3b_video

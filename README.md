@@ -3,6 +3,7 @@ Qwen2.5-VL-3B-Instruct DEMO on Axera
 
 - 图片理解：预编译模型下载[models](https://github.com/AXERA-TECH/Qwen2.5-VL-3B-Instruct.axera/releases/download/v1.0.0/models.tar.gz)，如需自行转换请参考[模型转换](/model_convert/README.md)
 - 视频理解：预编译模型下载[models](https://github.com/AXERA-TECH/Qwen2.5-VL-3B-Instruct.axera/releases/download/v1.0.0/)，如需自行转换请参考[模型转换](/model_convert/README_VIDEO.md)
+- [c++ demo](cpp)
 
 ## 支持平台
 

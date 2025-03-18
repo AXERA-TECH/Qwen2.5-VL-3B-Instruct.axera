@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     prefill_len = 320
     
-    checkpoint_dir="../Qwen2.5-VL-3B-Instruct-AX650-prefill_320/"
+    checkpoint_dir=f"../Qwen2.5-VL-3B-Instruct-AX650-prefill_320/"
     cfg = AutoConfig.from_pretrained(
         checkpoint_dir, trust_remote_code=True
     )
@@ -102,11 +102,11 @@ if __name__ == "__main__":
     # pixel_values = inputs['pixel_values_videos']
     # print("pixel_values",pixel_values.shape)
     # extract img feature by vit
-    vit_session = InferenceSession.load_from_model(f'{checkpoint_dir}/Qwen2.5-VL-3B-Instruct_vision_nhwc.axmodel')
+    vit_session = InferenceSession.load_from_model(f'{checkpoint_dir}/Qwen2.5-VL-3B-Instruct_vision_nchw448.axmodel')
 
 
     image = Image.open(path)
-    image = image.resize((308,308))
+    image = image.resize((448,448))
     img_processor = Qwen2VLImageProcessorExport(max_pixels=448*448, patch_size=14, temporal_patch_size=2, merge_size=2)
     pixel_values, grid_thw = img_processor._preprocess(image, do_resize=True, resample=PILImageResampling.BICUBIC, 
                                         do_rescale=False, do_normalize=False, 
