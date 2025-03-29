@@ -1,14 +1,14 @@
 # Qwen2.5-VL-3B-Instruct.axera
 Qwen2.5-VL-3B-Instruct DEMO on Axera
 
-- 图片理解：预编译模型下载[models](https://github.com/AXERA-TECH/Qwen2.5-VL-3B-Instruct.axera/releases/download/v1.0.0/models.tar.gz)，如需自行转换请参考[模型转换](/model_convert/README.md)
-- 视频理解：预编译模型下载[models](https://github.com/AXERA-TECH/Qwen2.5-VL-3B-Instruct.axera/releases/download/v1.0.0/)，如需自行转换请参考[模型转换](/model_convert/README_VIDEO.md)
+- 预编译模型下载 [Huggingface](https://huggingface.co/AXERA-TECH/Qwen2.5-VL-3B-Instruct)
+- 图片理解模型如需自行转换请参考[模型转换](/model_convert/README.md)
+- 视频理解模型如需自行转换请参考[模型转换](/model_convert/README_VIDEO.md)
 - [c++ demo](cpp)
 
 ## 支持平台
 
 - [x] AX650N
-- [ ] AX630C
 
 ## 模型转换
 
@@ -151,10 +151,10 @@ python3 infer_video.py
 ## 模型速度  
 | Vision Encoder | Time to First Token (ms) |
 |------|------|
-| U16 PTQ | 824  | 
+| U16 PTQ | 780  | 
 | Mixed PTQ |      |
 
-Language Model Decode: 3.5 tokens/s .
+Language Model Decode: 6.3 tokens/s .
 
 ## 关于 mrope
 ### 一、Qwen2.5-VL 中的 multimodal_rotary_embedding（mrope）和 rope 的区别  
@@ -162,11 +162,11 @@ Language Model Decode: 3.5 tokens/s .
 2. mrope在使用的时候会将三维分channel （16,24,24）选出来合成一维，形式和rope相同。
 
 ### 二、axmodel 中 mrope的使用方法  
-mrope的position_id 是和图片尺寸，text长度相关的，但是在编译LM的部分又不希望固化这些参数。  
+mrope 的 position_id 是和图片尺寸，text 长度相关的，但是在编译 LLM 的部分又不希望固化这些参数。  
 所以在实现上:  
-模型中保存的 cos_param和sin_param和 rope的相同。  
-在prefill阶段推理的时候，会传入三维的position_id，模型中以position_id作为index去gather cos_param和sin_param得到mrope的 cos_param和sin_param。然后模型中会将三维embedding按channel合成一维。  
-在decode阶段，mrope因为三个维度相同，所以其实和rope等价，只是 起始position id 值不再是 prefill token length 加一，而是 prefill 阶段 最大position id 值加一。  
+模型中保存的 cos_param 和 sin_param 和 rope 的相同。  
+在 prefill 阶段推理的时候，会传入三维的 position_id，模型中以 position_id 作为 index 去 gather cos_param 和 sin_param 得到 mrope 的 cos_param 和 sin_param。然后模型中会将三维 embedding 按 channel 合成一维。  
+在 decode 阶段，mrope 因为三个维度相同，所以其实和 rope 等价，只是起始 position id 值不再是 prefill token length 加一，而是 prefill 阶段 最大position id 值加一。  
 示例代码见 `python/infer.py`。     
 
 ## 技术讨论
