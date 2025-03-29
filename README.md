@@ -125,27 +125,13 @@ python3 infer_video.py
         }
     ]
 ```
-<div style="
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);  /* 4列等宽 */
-    grid-template-rows: repeat(2, 1fr);     /* 2行等高 */
-    gap: 10px;                              /* 图片间距 */
-    width: 80%;                             /* 容器宽度 */
-    margin: 0 auto;                         /* 居中显示 */
-">
-    <img src="demo/frame_0075.jpg" style="width: 100%; height: 100%; object-fit: cover;">
-    <img src="demo/frame_0077.jpg" style="width: 100%; height: 100%; object-fit: cover;">
-    <img src="demo/frame_0079.jpg" style="width: 100%; height: 100%; object-fit: cover;">
-    <img src="demo/frame_0081.jpg" style="width: 100%; height: 100%; object-fit: cover;">
-    <img src="demo/frame_0083.jpg" style="width: 100%; height: 100%; object-fit: cover;">
-    <img src="demo/frame_0085.jpg" style="width: 100%; height: 100%; object-fit: cover;">
-    <img src="demo/frame_0087.jpg" style="width: 100%; height: 100%; object-fit: cover;">
-    <img src="demo/frame_0089.jpg" style="width: 100%; height: 100%; object-fit: cover;">
-</div>
+
+(视频内容待补充)
 
 **输出**  
 ```
-视频显示的是一个城市街道的场景。时间戳显示为2月26日，地点是北京。视频中，一名穿着深色外套和牛仔裤的男子正在推着一个行李箱。突然，他似乎被什么东西绊倒，整个人向前扑倒，行李箱也随之倒地。男子试图站起来，但似乎有些吃力。背景中可以看到一些行人和车辆，以及一个广告牌，上面有一个绿色的树形图案。整个场景看起来是在白天拍摄的，光线充足。<|im_end|>
+视频显示的是一个城市街道的场景。时间戳显示为2月26日，地点是xxx。视频中，一名穿着深色外套和牛仔裤的男子正在推着一个行李箱。突然，他似乎被什么东西绊倒，整个人向前扑倒，行李箱也随之倒地。
+男子试图站起来，但似乎有些吃力。背景中可以看到一些行人和车辆，以及一个广告牌，上面有一个绿色的树形图案。整个场景看起来是在白天拍摄的，光线充足。<|im_end|>
 ```
 
 ## 模型速度  
