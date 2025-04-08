@@ -1,6 +1,9 @@
 onnx==1.17.0
 onnxruntime==1.20.1
+onnxsim
 opencv-python
 torch>=2.4.0
 torchvision==0.19.0
 transformers==4.49.0
+accelerate>=0.26.0
+qwen_vl_utils

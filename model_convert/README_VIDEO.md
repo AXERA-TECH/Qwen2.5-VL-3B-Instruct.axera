@@ -39,7 +39,29 @@ python run_video_by_sec.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 ```
 python export.py ../Qwen/Qwen2.5-VL-3B-Instruct/  video
 ```
-这一步会生成 `Qwen2.5-VL-3B-Instruct_vision.onnx`和`Qwen2.5-VL-3B-Instruct_vision.onnx.data`,计算图和权重参数分离。
+这一步会生成 `Qwen2.5-VL-3B-Instruct_vision.onnx`和`Qwen2.5-VL-3B-Instruct_vision.onnx.data`,计算图和权重参数分离。  
+
+**注意**
+由于兼容性问题，python3.12 在执行`onnxsim.simplify`时可能会报如下错误
+```
+IR 版本: 8
+操作集: [version: 16
+]
+Traceback (most recent call last):
+  File "/data//Qwen2.5-VL-3B-Instruct.axera/model_convert/sim.py", line 12, in <module>
+    model_simp, check = onnxsim.simplify(onnx_model)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data//miniforge3/envs/qwen2_5_vl/lib/python3.12/site-packages/onnxsim/onnx_simplifier.py", line 199, in simplify
+    model_opt_bytes = C.simplify(
+                      ^^^^^^^^^^^
+RuntimeError: The model does not have an ir_version set properly.
+```
+此时需换成 python3.9 执行 `onnxsim.simplify`。
+```
+conda create -n py39 python=3.9 -y 
+pip install -r requirements_onnxsim.txt
+python sim.py
+```
 
 3). 测试onnx模型
 

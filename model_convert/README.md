@@ -27,7 +27,7 @@ pip install -r requirements.txt
 
 1). 运行模型，保存导出onnx需要的参数
 ```
-python run.py ../Qwen/Qwen2.5-VL-3B-Instruct/
+python run_nchw.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 ```
 这里会保存 `hidden_states`, `rotary_pos_emb`, `cu_seqlens`, `cu_window_seqlens`, `window_index`。  
 这几个tensor，除了`hidden_states`和像素值、图像尺寸有关外，其它四个都只和图像尺寸相关。所以如果模型的输入尺寸固定，这几个tensor可以固定到onnx模型中。
@@ -39,6 +39,28 @@ python run.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 python export.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 ```
 这一步会生成 `Qwen2.5-VL-3B-Instruct_vision.onnx`和`Qwen2.5-VL-3B-Instruct_vision.onnx.data`,计算图和权重参数分离。
+
+**注意**
+由于兼容性问题，python3.12 在执行`onnxsim.simplify`时可能会报如下错误
+```
+IR 版本: 8
+操作集: [version: 16
+]
+Traceback (most recent call last):
+  File "/data//Qwen2.5-VL-3B-Instruct.axera/model_convert/sim.py", line 12, in <module>
+    model_simp, check = onnxsim.simplify(onnx_model)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data//miniforge3/envs/qwen2_5_vl/lib/python3.12/site-packages/onnxsim/onnx_simplifier.py", line 199, in simplify
+    model_opt_bytes = C.simplify(
+                      ^^^^^^^^^^^
+RuntimeError: The model does not have an ir_version set properly.
+```
+此时需换成 python3.9 执行 `onnxsim.simplify`。
+```
+conda create -n py39 python=3.9 -y 
+pip install -r requirements_onnxsim.txt
+python sim.py
+```
 
 3). 测试onnx模型
 
