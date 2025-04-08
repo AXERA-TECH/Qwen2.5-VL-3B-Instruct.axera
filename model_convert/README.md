@@ -58,6 +58,7 @@ RuntimeError: The model does not have an ir_version set properly.
 此时需换成 python3.9 执行 `onnxsim.simplify`。
 ```
 conda create -n py39 python=3.9 -y 
+conda activate py39
 pip install -r requirements_onnxsim.txt
 python sim.py
 ```
