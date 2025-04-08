@@ -25,8 +25,12 @@ def export_onnx(model, input, input_names, output_names, onnx_output):
     onnx_model = onnx.load(onnx_output)
     print("IR 版本:", onnx_model.ir_version)
     print("操作集:", onnx_model.opset_import)
-    # simplify model
-    os.system(f"./onnxsim {onnx_output} {onnx_output}")
+    onnx_model = infer_shapes(onnx_model)
+    # convert model
+    model_simp, check = onnxsim.simplify(onnx_model)
+    assert check, "Simplified ONNX model could not be validated"
+    onnx.save(model_simp, onnx_output)
+    print("onnx simpilfy successed, and model saved in {}".format(onnx_output))
 
 def generate_attnmask(seq_length, cu_seqlens, device):
     attention_mask = torch.zeros([1, seq_length, seq_length], device=device, dtype=torch.bool)

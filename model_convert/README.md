@@ -55,6 +55,7 @@ python test_onnx.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 - 使用 `Pulsar2 build` 命令集进行模型转换（PTQ 量化、编译），更详细的使用说明请参考 [AXera Pulsar2 工具链指导手册](https://pulsar2-docs.readthedocs.io/zh-cn/latest/index.html)
 
 1). 生成量化数据集  
+这里将图片按照patch编排后，重新保存为图片形式，和onnx模型的输入一致  
 ```
 python get_image_calib.py
 cd calib_img
