@@ -1,3 +1,4 @@
 onnx==1.17.0
 onnxruntime==1.19.2
 onnxsim==0.4.36
+protobuf==3.20.3

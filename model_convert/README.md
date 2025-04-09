@@ -55,7 +55,7 @@ Traceback (most recent call last):
                       ^^^^^^^^^^^
 RuntimeError: The model does not have an ir_version set properly.
 ```
-此时需换成 python3.9 执行 `onnxsim.simplify`。
+这个问题一般是由于protobuf版本过高导致，新建一个环境降低protobuf版本单独执行`onnxsim.simplify`。  
 ```
 conda create -n py39 python=3.9 -y 
 conda activate py39
