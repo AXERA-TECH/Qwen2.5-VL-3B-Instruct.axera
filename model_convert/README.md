@@ -82,7 +82,7 @@ python test_onnx.py ../Qwen/Qwen2.5-VL-3B-Instruct/
 ```
 python get_image_calib.py
 cd calib_img
-tar -cvf hidden_states.tar hidden_states.npy
+tar -cvf hidden_states.tar *.jpg
 ```
 
 2). 模型转换
