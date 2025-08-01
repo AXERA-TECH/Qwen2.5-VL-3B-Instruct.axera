@@ -1,0 +1,1 @@
+pulsar2 build --input Qwen2.5-VL-7B-Instruct_vision_video.onnx --config config_video.json --output_dir build-output-video --output_name Qwen2.5-VL-7B-Instruct_vision_video.axmodel --target_hardware AX650 --compiler.check 0

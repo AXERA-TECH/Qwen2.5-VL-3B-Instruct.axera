@@ -6,10 +6,12 @@ import numpy as np
 import random
 from PIL import Image
 import cv2
+import os 
+
 if __name__=="__main__":
     paths = sorted(glob("../demo/*"))
     print(paths)
-
+    os.makedirs("calib")
     images = []
     for p in paths:
         img = Image.open(p)

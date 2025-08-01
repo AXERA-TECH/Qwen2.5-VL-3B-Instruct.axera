@@ -8,14 +8,13 @@ import sys
 from PIL import Image
 from utils import get_rope_index
 from glob import glob
-import cv2
 from preprocess import Qwen2VLImageProcessorExport
 import numpy as np
 
 checkpoint_dir = sys.argv[1] if len(sys.argv)>=2 else "../../Qwen/Qwen2.5-VL-3B-Instruct"
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationInfer.from_pretrained(
-    checkpoint_dir, torch_dtype=torch.float32, device_map="cuda"
+    checkpoint_dir, torch_dtype=torch.float32, device_map="cpu"
 )
 # model.visual.forward = model.visual.forward_by_second
 model.visual.forward = model.visual.forward_by_second_nchw
@@ -69,11 +68,11 @@ pixel_values, grid_thw = img_processor._preprocess(images, do_resize=True, resam
 
 t,seq_len,tpp,_ = pixel_values.shape
 
-pixel_values = torch.from_numpy(pixel_values).to("cuda")
+pixel_values = torch.from_numpy(pixel_values).to("cpu")
 mean = torch.tensor(image_mean,dtype=torch.float32).reshape([1,1,1,3])*255
-mean = mean.to("cuda")
+mean = mean.to("cpu")
 std = torch.tensor(image_std,dtype=torch.float32).reshape([1,1,1,3])*255
-std = std.to("cuda")
+std = std.to("cpu")
 pixel_values = (pixel_values-mean)/std
 
 pixel_values = pixel_values.permute(0,3,1,2)
@@ -96,7 +95,7 @@ inputs = processor(
     return_tensors="pt",
     **video_kwargs,
 )
-inputs = inputs.to("cuda")
+inputs = inputs.to("cpu")
 print(inputs.keys())
 
 print("inputs['video_grid_thw']",inputs['video_grid_thw'])

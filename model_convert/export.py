@@ -22,15 +22,15 @@ def export_onnx(model, input, input_names, output_names, onnx_output):
         opset_version=16,
     )
 
-    onnx_model = onnx.load(onnx_output)
-    print("IR 版本:", onnx_model.ir_version)
-    print("操作集:", onnx_model.opset_import)
-    onnx_model = infer_shapes(onnx_model)
-    # convert model
-    model_simp, check = onnxsim.simplify(onnx_model)
-    assert check, "Simplified ONNX model could not be validated"
-    onnx.save(model_simp, onnx_output)
-    print("onnx simpilfy successed, and model saved in {}".format(onnx_output))
+    # onnx_model = onnx.load(onnx_output)
+    # print("IR 版本:", onnx_model.ir_version)
+    # print("操作集:", onnx_model.opset_import)
+    # onnx_model = infer_shapes(onnx_model)
+    # # convert model
+    # model_simp, check = onnxsim.simplify(onnx_model)
+    # assert check, "Simplified ONNX model could not be validated"
+    # onnx.save(model_simp, onnx_output)
+    # print("onnx simpilfy successed, and model saved in {}".format(onnx_output))
 
 def generate_attnmask(seq_length, cu_seqlens, device):
     attention_mask = torch.zeros([1, seq_length, seq_length], device=device, dtype=torch.bool)
@@ -41,7 +41,7 @@ def generate_attnmask(seq_length, cu_seqlens, device):
 
 checkpoint_dir = sys.argv[1] if len(sys.argv)>=2 else "../../Qwen/Qwen2.5-VL-3B-Instruct/"
 which = sys.argv[2] if len(sys.argv)>=3 else "image"
-
+onnx_output = sys.argv[3] if len(sys.argv)>=4 else "Qwen2.5-VL-7B-Instruct_vision.onnx"
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
     checkpoint_dir, torch_dtype=torch.float32, device_map="cpu"
@@ -63,7 +63,7 @@ input = ( hidden_states)
 
 input_names = ["hidden_states"]
 
-onnx_output = f"Qwen2.5-VL-3B-Instruct_vision.onnx"
+
 
 output_names = [f"hidden_states_out"]
 

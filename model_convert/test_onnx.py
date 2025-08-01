@@ -8,11 +8,12 @@ from transformers.image_utils import PILImageResampling
 from preprocess import Qwen2VLImageProcessorExport
 
 checkpoint_dir = sys.argv[1] if len(sys.argv)>=2 else "../../Qwen/Qwen2.5-VL-3B-Instruct/"
+onnx_path = sys.argv[2] if len(sys.argv)>=3 else "Qwen2.5-VL-3B-Instruct_vision.onnx"
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
-    checkpoint_dir, torch_dtype=torch.float32, device_map="cuda"
+    checkpoint_dir, torch_dtype=torch.float32, device_map="cpu"
 )
-
+model.visual.init_onnx_session(onnx_path)
 model.visual.forward = model.visual.forward_onnx_nchw
 
 # default processer
@@ -56,14 +57,14 @@ pixel_values, grid_thw = img_processor._preprocess(images, do_resize=True, resam
 
 t,seq_len,tpp,_ = pixel_values.shape
 
-pixel_values = torch.from_numpy(pixel_values).to("cuda")
+pixel_values = torch.from_numpy(pixel_values).to("cpu")
 mean = torch.tensor(image_mean,dtype=torch.float32).reshape([1,1,1,3])*255
-mean = mean.to("cuda")
+mean = mean.to("cpu")
 std = torch.tensor(image_std,dtype=torch.float32).reshape([1,1,1,3])*255
-std = std.to("cuda")
+std = std.to("cpu")
 pixel_values = (pixel_values-mean)/std
 
-pixel_values = pixel_values.permute(0,3,1,2).to("cuda")
+pixel_values = pixel_values.permute(0,3,1,2).to("cpu")
 
 # Preparation for inference
 text = processor.apply_chat_template(
@@ -78,7 +79,7 @@ inputs = processor(
     return_tensors="pt",
 )
 
-inputs = inputs.to("cuda")
+inputs = inputs.to("cpu")
 inputs['pixel_values'] = pixel_values
 
 # Inference: Generation of the output

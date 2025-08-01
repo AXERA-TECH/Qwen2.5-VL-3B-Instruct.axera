@@ -481,7 +481,14 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         self.blocks = nn.ModuleList(
             [Qwen2_5_VLVisionBlockExport(config, config._attn_implementation) for _ in range(config.depth)]
         )
+
+        self.session = None
     
+    def init_onnx_session(self, onnx_path):
+        print(f"init onnx model:{onnx_path}")
+        self.session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
+
+
     def forward_export(self, hidden_states):
 
         device = hidden_states.device
@@ -664,11 +671,11 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
 
         # return hidden_states
-        print("test Vision Encoder Onnx -------------------")
-        session1 = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
+        # print("test Vision Encoder Onnx -------------------")
+        # session1 = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
         
         inputs = {"hidden_states": hidden_states.cpu().numpy().astype(np.float32),}
-        hidden_states = session1.run(["hidden_states_out"], inputs)[0]
+        hidden_states = self.session.run(["hidden_states_out"], inputs)[0]
         hidden_states = torch.from_numpy(hidden_states).to(grid_thw.device)
         return hidden_states
     
@@ -684,11 +691,11 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
             `torch.Tensor`: hidden_states.
         """
         
-        print("test Vision Encoder Onnx -------------------")
-        session = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
+        # print("test Vision Encoder Onnx -------------------")
+        # session = ort.InferenceSession("Qwen2.5-VL-7B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
         
         inputs = {"hidden_states": hidden_states.cpu().numpy().astype(np.float32),}
-        out = session.run(["hidden_states_out"], inputs)[0]
+        out = self.session.run(["hidden_states_out"], inputs)[0]
         out = torch.from_numpy(out).to(grid_thw.device)
       
         return out
@@ -707,8 +714,8 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
        
         t, grid_h, grid_w = grid_thw[0]
 
-        print("test Vision Encoder Onnx -------------------")
-        session = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
+        # print("test Vision Encoder Onnx -------------------")
+        # session = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
         
         
         thw, dim = hidden_states.shape
@@ -719,7 +726,7 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
             ht = hidden_states[ti]
 
             inputs = {"hidden_states": ht.cpu().numpy().astype(np.float32),}
-            out = session.run(["hidden_states_out"], inputs)[0]
+            out = self.session.run(["hidden_states_out"], inputs)[0]
             out = torch.from_numpy(out).to(grid_thw.device)
             outputs.append(out)
         outputs = torch.cat(outputs, 0)
@@ -737,8 +744,8 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
             `torch.Tensor`: hidden_states.
         """
         
-        print("test Vision Encoder Onnx -------------------")
-        session = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
+        # print("test Vision Encoder Onnx -------------------")
+        # session = ort.InferenceSession("Qwen2.5-VL-7B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
         
         
         t = hidden_states.shape[0]
@@ -748,7 +755,7 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
             ht = hidden_states[ti:ti+1]
 
             inputs = {"hidden_states": ht.cpu().numpy().astype(np.float32),}
-            out = session.run(["hidden_states_out"], inputs)[0]
+            out = self.session.run(["hidden_states_out"], inputs)[0]
             out = torch.from_numpy(out).to(grid_thw.device)
             outputs.append(out)
         outputs = torch.cat(outputs, 0)
