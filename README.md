@@ -4,7 +4,7 @@ Qwen2.5-VL-3B-Instruct DEMO on Axera
 - 预编译模型下载 [Huggingface](https://huggingface.co/AXERA-TECH/Qwen2.5-VL-3B-Instruct)
 - 图片理解模型如需自行转换请参考[模型转换](/model_convert/README.md)
 - 视频理解模型如需自行转换请参考[模型转换](/model_convert/README_VIDEO.md)
-- [c++ demo](cpp)
+- [c++ demo](cpp) 算力卡版本切换到分支 axcl，AX650版本切换到分支 qwen2_5_vl_3b_video
 
 ## 支持平台
 
