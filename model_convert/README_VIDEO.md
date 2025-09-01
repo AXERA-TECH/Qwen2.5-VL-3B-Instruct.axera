@@ -106,9 +106,18 @@ pulsar2 build --input Qwen2.5-VL-3B-Instruct_vision.onnx --config config_video.j
 ### 1. 转换Language Model  
 执行命令
 ```
-pulsar2 llm_build --input_path ../Qwen/Qwen2.5-VL-3B-Instruct/ --output_path ../Qwen/Qwen2.5-VL-3B-Instruct-AX650/ --kv_cache_len 1023 --hidden_state_type bf16 --prefill_len 512 --parallel 32 --chip AX650
+pulsar2 llm_build --input_path ../..//Qwen2.5-VL-7B-Instruct/ \
+                --output_path ../..//Qwen2.5-VL-7B-Instruct-AX650-chunk_prefill_1280/ \
+                --kv_cache_len 2047 \
+                --hidden_state_type bf16 \
+                --prefill_len 128 \
+                --last_kv_cache_len 128 \
+                --last_kv_cache_len 256 \
+                --last_kv_cache_len 384 \
+                --last_kv_cache_len 512 \
+                --chip AX650
 ```
-其中 `prefill_len` 的长度就是 `prefill`阶段的最大token数，请根据实际情况设置这个值。
+其中 `last_kv_cache_len` 的最大值就是 `prefill`阶段的最大token数，请根据实际情况设置这个值。
 
 ### 2. 从 Language model 中提取 token embeddings  
 clone 这个仓库下的工具 https://github.com/AXERA-TECH/ax-llm-build.git   
