@@ -159,3 +159,6 @@ mrope 的 position_id 是和图片尺寸，text 长度相关的，但是在编�
 
 - Github issues
 - QQ 群: 139953715
+
+## 常见问题  
+[QA.md](./QA.md)
